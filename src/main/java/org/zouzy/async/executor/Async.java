@@ -1,4 +1,4 @@
-package org.zouzy.async;
+package org.zouzy.async.executor;
 
 import org.zouzy.async.callback.DefaultGroupCallback;
 import org.zouzy.async.callback.IGroupCallback;
