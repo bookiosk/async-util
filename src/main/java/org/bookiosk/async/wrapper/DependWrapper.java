@@ -1,4 +1,4 @@
-package org.bookiosk.async.entity;
+package org.bookiosk.async.wrapper;
 
 import org.bookiosk.async.wrapper.WorkerWrapper;
 

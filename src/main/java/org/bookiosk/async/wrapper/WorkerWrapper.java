@@ -1,7 +1,7 @@
 package org.bookiosk.async.wrapper;
 
 import org.bookiosk.async.callback.ICallback;
-import org.bookiosk.async.entity.DependWrapper;
+import org.bookiosk.async.entity.Builder;
 import org.bookiosk.async.entity.ExecuteResult;
 import org.bookiosk.async.enums.ResultState;
 import org.bookiosk.async.enums.WorkStage;
@@ -116,13 +116,13 @@ public class WorkerWrapper<T,V> {
     }
 
     private WorkerWrapper(String id, IWorker<T, V> worker, T param, ICallback<T, V> callback) {
-        if (worker == null || callback == null) {
-            throw new NullPointerException();
+        if (worker == null) {
+            throw new NullPointerException("worker is null");
         }
+        this.id = id;
         this.worker = worker;
         this.param = param;
-        this.id = id;
-        this.callback = callback;
+        this.callback = callback != null ? callback : new DefaultCallback<>();
     }
 
     //—————————————————————— 新增方法部分 ——————————————————————//
@@ -439,7 +439,7 @@ public class WorkerWrapper<T,V> {
 
     //—————————————————————— Builder方法部分 ——————————————————————//
 
-    public static class Builder<W, C> {
+    public static class WorkerWrapperBuilder<W, C> implements Builder<WorkerWrapper<W, C>> {
         /**
          * 该wrapper的唯一标识
          */
@@ -465,34 +465,34 @@ public class WorkerWrapper<T,V> {
 
         private boolean needCheckNextWrapperResult = true;
 
-        public Builder<W, C> id(String id) {
+        public WorkerWrapperBuilder<W, C> id(String id) {
             if (id != null) {
                 this.id = id;
             }
             return this;
         }
 
-        public Builder<W, C> worker(IWorker<W, C> worker) {
+        public WorkerWrapperBuilder<W, C> worker(IWorker<W, C> worker) {
             this.worker = worker;
             return this;
         }
 
-        public Builder<W, C> param(W w) {
+        public WorkerWrapperBuilder<W, C> param(W w) {
             this.param = w;
             return this;
         }
 
-        public Builder<W, C> needCheckNextWrapperResult(boolean needCheckNextWrapperResult) {
+        public WorkerWrapperBuilder<W, C> needCheckNextWrapperResult(boolean needCheckNextWrapperResult) {
             this.needCheckNextWrapperResult = needCheckNextWrapperResult;
             return this;
         }
 
-        public Builder<W, C> callback(ICallback<W, C> callback) {
+        public WorkerWrapperBuilder<W, C> callback(ICallback<W, C> callback) {
             this.callback = callback;
             return this;
         }
 
-        public Builder<W, C> depend(WorkerWrapper<?, ?>... wrappers) {
+        public WorkerWrapperBuilder<W, C> depend(WorkerWrapper<?, ?>... wrappers) {
             if (wrappers == null) {
                 return this;
             }
@@ -502,11 +502,11 @@ public class WorkerWrapper<T,V> {
             return this;
         }
 
-        public Builder<W, C> depend(WorkerWrapper<?, ?> wrapper) {
+        public WorkerWrapperBuilder<W, C> depend(WorkerWrapper<?, ?> wrapper) {
             return depend(wrapper, true);
         }
 
-        public Builder<W, C> depend(WorkerWrapper<?, ?> wrapper, boolean isMust) {
+        public WorkerWrapperBuilder<W, C> depend(WorkerWrapper<?, ?> wrapper, boolean isMust) {
             if (wrapper == null) {
                 return this;
             }
@@ -518,11 +518,11 @@ public class WorkerWrapper<T,V> {
             return this;
         }
 
-        public Builder<W, C> next(WorkerWrapper<?, ?> wrapper) {
+        public WorkerWrapperBuilder<W, C> next(WorkerWrapper<?, ?> wrapper) {
             return next(wrapper, true);
         }
 
-        public Builder<W, C> next(WorkerWrapper<?, ?> wrapper, boolean selfIsMust) {
+        public WorkerWrapperBuilder<W, C> next(WorkerWrapper<?, ?> wrapper, boolean selfIsMust) {
             if (nextWrappers == null) {
                 nextWrappers = new ArrayList<>();
             }
@@ -538,7 +538,7 @@ public class WorkerWrapper<T,V> {
             return this;
         }
 
-        public Builder<W, C> next(WorkerWrapper<?, ?>... wrappers) {
+        public WorkerWrapperBuilder<W, C> next(WorkerWrapper<?, ?>... wrappers) {
             if (wrappers == null) {
                 return this;
             }
