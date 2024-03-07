@@ -2,7 +2,7 @@ package org.bookiosk.async.log;
 
 import org.bookiosk.async.AsyncManager;
 import org.bookiosk.async.util.StrFormatter;
-import org.bookiosk.async.config.AsyncConfig;
+import org.bookiosk.async.config.AsyncLogConfig;
 
 /**
  * @author bookiosk 2024-02-29
@@ -80,7 +80,7 @@ public class AsyncLogForConsole implements AsyncLog{
      * @param args 参数列表
      */
     public void println(int level, String color, String prefix, String str, Object... args) {
-        AsyncConfig config = AsyncManager.getConfig();
+        AsyncLogConfig config = AsyncManager.getConfig();
         if(config.getIsLog() && level >= config.getLogLevelInt()) {
             if(config.getIsColorLog() == Boolean.TRUE) {
                 // 彩色日志

@@ -1,23 +1,23 @@
 package org.bookiosk.async;
 
-import org.bookiosk.async.config.AsyncConfig;
+import org.bookiosk.async.config.AsyncLogConfig;
 
 /**
  * @author bookiosk 2024-02-29
  */
 public class AsyncManager {
 
-    public volatile static AsyncConfig config;
+    public volatile static AsyncLogConfig config;
 
-    private static void setConfigMethod(AsyncConfig config) {
+    private static void setConfigMethod(AsyncLogConfig config) {
         AsyncManager.config = config;
     }
 
-    public static AsyncConfig getConfig() {
+    public static AsyncLogConfig getConfig() {
         if (config == null) {
             synchronized (AsyncManager.class) {
                 if (config == null) {
-                    setConfigMethod(new AsyncConfig());
+                    setConfigMethod(new AsyncLogConfig());
                 }
             }
         }

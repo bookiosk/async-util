@@ -3,7 +3,7 @@ package org.bookiosk.async.config;
 /**
  * @author bookiosk 2024-02-29
  */
-public class AsyncConfig {
+public class AsyncLogConfig {
 
     /**
      * 是否打印操作日志
