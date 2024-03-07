@@ -3,6 +3,8 @@ package org.bookiosk.async.executor;
 import org.bookiosk.async.callback.DefaultGroupCallback;
 import org.bookiosk.async.callback.IGroupCallback;
 import org.bookiosk.async.wrapper.WorkerWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -14,6 +16,8 @@ import java.util.stream.Collectors;
  * @author: bookiosk wrote on 2024-02-27
  **/
 public class Async {
+
+    private static final Logger logger = LoggerFactory.getLogger(Async.class);
 
     /**
      * 默认不定长线程池
@@ -94,7 +98,7 @@ public class Async {
                     finalGroupCallback.failure(Arrays.asList(workerWrapper), new TimeoutException());
                 }
             } catch (ExecutionException | InterruptedException e) {
-                e.printStackTrace();
+                logger.error("beginWorkAsync failed, error message : ", e);;
                 finalGroupCallback.failure(Arrays.asList(workerWrapper), e);
             }
         });

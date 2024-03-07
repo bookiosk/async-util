@@ -9,6 +9,8 @@ import org.bookiosk.async.worker.IWorker;
 import org.bookiosk.async.callback.DefaultCallback;
 import org.bookiosk.async.exception.SkippedException;
 import org.bookiosk.async.executor.timer.SystemClock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -69,6 +71,8 @@ public class WorkerWrapper<T,V> {
      * 注意，该属性仅在nextWrapper数量<=1时有效，>1时的情况是不存在的
      */
     private volatile boolean needCheckNextWrapperResult = true;
+
+    private static final Logger logger = LoggerFactory.getLogger(WorkerWrapper.class);
 
     //—————————————————————— 基础属性部分的获取 ——————————————————————
 
@@ -214,7 +218,7 @@ public class WorkerWrapper<T,V> {
         try {
             CompletableFuture.allOf(futures).get(remainTime - costTime, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("beginNext failed, error message : ", e);
         }
     }
 
