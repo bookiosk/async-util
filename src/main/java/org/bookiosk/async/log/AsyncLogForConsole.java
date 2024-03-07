@@ -21,13 +21,13 @@ public class AsyncLogForConsole implements AsyncLog{
     /**
      * 日志输出的前缀
      */
-    public static String LOG_PREFIX = "SaLog -->: ";
-    public static String TRACE_PREFIX = "SA [TRACE]-->: ";
-    public static String DEBUG_PREFIX = "SA [DEBUG]-->: ";
-    public static String INFO_PREFIX  = "SA [INFO] -->: ";
-    public static String WARN_PREFIX  = "SA [WARN] -->: ";
-    public static String ERROR_PREFIX = "SA [ERROR]-->: ";
-    public static String FATAL_PREFIX = "SA [FATAL]-->: ";
+    public static String LOG_PREFIX = "AsyncLog -->: ";
+    public static String TRACE_PREFIX = "ASYNC [TRACE]-->: ";
+    public static String DEBUG_PREFIX = "ASYNC [DEBUG]-->: ";
+    public static String INFO_PREFIX  = "ASYNC [INFO] -->: ";
+    public static String WARN_PREFIX  = "ASYNC [WARN] -->: ";
+    public static String ERROR_PREFIX = "ASYNC [ERROR]-->: ";
+    public static String FATAL_PREFIX = "ASYNC [FATAL]-->: ";
 
     /**
      * 日志输出的颜色
