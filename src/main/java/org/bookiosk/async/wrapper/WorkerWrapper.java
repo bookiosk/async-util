@@ -92,6 +92,10 @@ public class WorkerWrapper<T,V> {
         this.needCheckNextWrapperResult = needCheckNextWrapperResult;
     }
 
+    public void setParam(T param) {
+        this.param = param;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -439,6 +443,10 @@ public class WorkerWrapper<T,V> {
             }
         }
         dependWrappers.add(dependWrapper);
+    }
+
+    public static <T,V> WorkerWrapperBuilder<T,V> builder() {
+        return new WorkerWrapperBuilder<>();
     }
 
     //—————————————————————— Builder方法部分 ——————————————————————//
