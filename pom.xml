@@ -65,6 +65,7 @@
         <configuration>
           <publishingServerId>central</publishingServerId>
           <tokenAuth>true</tokenAuth>
+          <checksums>required</checksums>
           <deploymentName>async-util</deploymentName>
         </configuration>
       </plugin>
