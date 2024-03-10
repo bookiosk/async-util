@@ -1,10 +1,8 @@
 package depend;
 
-import org.bookiosk.async.callback.ICallback;
-import org.bookiosk.async.entity.ExecuteResult;
-import org.bookiosk.async.executor.Async;
-import org.bookiosk.async.worker.IWorker;
-import org.bookiosk.async.wrapper.WorkerWrapper;
+import io.github.bookiosk.entity.ExecuteResult;
+import io.github.bookiosk.executor.Async;
+import io.github.bookiosk.wrapper.WorkerWrapper;
 
 import java.util.concurrent.ExecutionException;
 

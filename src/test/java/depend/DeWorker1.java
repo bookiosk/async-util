@@ -1,15 +1,15 @@
 package depend;
 
 
-import org.bookiosk.async.callback.ICallback;
-import org.bookiosk.async.entity.ExecuteResult;
-import org.bookiosk.async.worker.IWorker;
-import org.bookiosk.async.wrapper.WorkerWrapper;
+import io.github.bookiosk.callback.ICallback;
+import io.github.bookiosk.entity.ExecuteResult;
+import io.github.bookiosk.worker.IWorker;
+import io.github.bookiosk.wrapper.WorkerWrapper;
 
 import java.util.Map;
 
 /**
- * @author bookiosk wrote on 2024-02-27
+ * @author bookiosk
  */
 public class DeWorker1 implements IWorker<ExecuteResult<User>, User>, ICallback<ExecuteResult<User>, User> {
 
