@@ -3,13 +3,13 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.bookiosk</groupId>
-  <artifactId>AsyncUtil</artifactId>
+  <artifactId>async-util</artifactId>
   <version>0.1.0</version>
   <packaging>jar</packaging>
 
-  <name>AsyncUtil</name>
+  <name>async-util</name>
   <description>a asynchronous tool for java developer</description>
-  <url>https://github.com/bookiosk/AsyncUtil</url>
+  <url>https://github.com/bookiosk/async-util</url>
 
   <licenses>
     <license>
@@ -19,9 +19,9 @@
   </licenses>
 
   <scm>
-    <connection>scm:git:git://github.com/bookiosk/AsyncUtil.git</connection>
-    <developerConnection>scm:git:ssh://github.com:bookiosk/AsyncUtil.git</developerConnection>
-    <url>https://github.com/bookiosk/AsyncUtil</url>
+    <connection>scm:git:git://github.com/bookiosk/async-util.git</connection>
+    <developerConnection>scm:git:ssh://github.com:bookiosk/async-util.git</developerConnection>
+    <url>https://github.com/bookiosk/async-util</url>
   </scm>
 
   <developers>
@@ -65,6 +65,7 @@
         <configuration>
           <publishingServerId>central</publishingServerId>
           <tokenAuth>true</tokenAuth>
+          <deploymentName>async-util</deploymentName>
         </configuration>
       </plugin>
       <plugin>
