@@ -2,6 +2,9 @@ package io.github.bookiosk.entity;
 
 import io.github.bookiosk.enums.ResultState;
 
+/**
+ * @author bookiosk
+ */
 public class ExecuteResult<V> {
 
     /**

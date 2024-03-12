@@ -1,5 +1,7 @@
 package io.github.bookiosk.wrapper;
 
+import java.util.Objects;
+
 /**
  * 对依赖的wrapper的封装
  * @author bookiosk
@@ -44,5 +46,22 @@ public class DependWrapper {
                 "dependWrapper=" + dependWrapper +
                 ", must=" + must +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DependWrapper that = (DependWrapper) o;
+        return must == that.must && Objects.equals(dependWrapper, that.dependWrapper);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(dependWrapper, must);
     }
 }

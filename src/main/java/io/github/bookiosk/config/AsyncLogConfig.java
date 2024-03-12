@@ -1,7 +1,7 @@
 package io.github.bookiosk.config;
 
 /**
- * @author bookiosk 2024-02-29
+ * @author bookiosk
  */
 public class AsyncLogConfig {
 

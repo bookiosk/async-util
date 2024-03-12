@@ -1,41 +1,41 @@
 package io.github.bookiosk.wrapper;
 
+import io.github.bookiosk.callback.DefaultCallback;
 import io.github.bookiosk.callback.ICallback;
 import io.github.bookiosk.entity.Builder;
 import io.github.bookiosk.entity.ExecuteResult;
 import io.github.bookiosk.enums.ResultState;
-import io.github.bookiosk.enums.WorkStage;
-import io.github.bookiosk.worker.IWorker;
-import io.github.bookiosk.callback.DefaultCallback;
 import io.github.bookiosk.exception.SkippedException;
 import io.github.bookiosk.executor.timer.SystemClock;
+import io.github.bookiosk.worker.IWorker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 用于组合了worker和callback,一对一的包装,是一个最小的调度单元。
  * 通过编排wrapper之间的关系,达到组合各个worker顺序的目的。
  *
- * @author  bookiosk
+ * @author bookiosk
  */
-public class WorkerWrapper<T,V> {
+public class WorkerWrapper<T, V> {
 
     /**
      * 该wrapper的唯一标识
      */
-    private String id;
+    private final String id;
     /**
      * worker将来要处理的param
      */
     private T param;
-    private IWorker<T, V> worker;
-    private ICallback<T, V> callback;
+    private final IWorker<T, V> worker;
+    private final ICallback<T, V> callback;
     /**
      * 在自己后面的wrapper，如果没有，自己就是末尾；如果有一个，就是串行；如果有多个，有几个就需要开几个线程
      */
@@ -49,10 +49,15 @@ public class WorkerWrapper<T,V> {
     /**
      * 标记该事件是否已经被处理过了，譬如已经超时返回false了，后续rpc又收到返回值了，则不再二次回调
      * 使用AtomicInteger是为了能保证高并发情况state的原子性
-     * <p>
+     *  <p>
      * 1-finish, 2-error, 3-working
      */
-    private final AtomicReference<WorkStage> state = new AtomicReference<>(WorkStage.INIT);
+    private final AtomicInteger state = new AtomicInteger(INIT);
+
+    private static final int INIT = 0;
+    private static final int FINISH = 1;
+    private static final int ERROR = 2;
+    private static final int WORKING = 3;
 
     /**
      * 该map存放所有wrapper的id和wrapper映射
@@ -76,7 +81,7 @@ public class WorkerWrapper<T,V> {
 
     //—————————————————————— 基础属性部分的获取 ——————————————————————
 
-    private WorkStage getState() {
+    private int getState() {
         return state.get();
     }
 
@@ -98,18 +103,14 @@ public class WorkerWrapper<T,V> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         WorkerWrapper<?, ?> that = (WorkerWrapper<?, ?>) o;
-        return needCheckNextWrapperResult == that.needCheckNextWrapperResult &&
-                Objects.equals(id, that.id) &&
-                Objects.equals(param, that.param) &&
-                Objects.equals(worker, that.worker) &&
-                Objects.equals(callback, that.callback) &&
-                Objects.equals(nextWrappers, that.nextWrappers) &&
-                Objects.equals(dependWrappers, that.dependWrappers) &&
-                Objects.equals(state, that.state) &&
-                Objects.equals(executeResult, that.executeResult);
+        return needCheckNextWrapperResult == that.needCheckNextWrapperResult && Objects.equals(id, that.id) && Objects.equals(param, that.param) && Objects.equals(worker, that.worker) && Objects.equals(callback, that.callback) && Objects.equals(nextWrappers, that.nextWrappers) && Objects.equals(dependWrappers, that.dependWrappers) && Objects.equals(state, that.state) && Objects.equals(executeResult, that.executeResult);
     }
 
     @Override
@@ -136,9 +137,8 @@ public class WorkerWrapper<T,V> {
     //—————————————————————— 新增方法部分 ——————————————————————//
 
     /**
-     *
-     * @param executorService 执行用的线程池
-     * @param remainTime 剩余时间
+     * @param executorService     执行用的线程池
+     * @param remainTime          剩余时间
      * @param forParamUseWrappers
      */
     public void work(ExecutorService executorService, long remainTime, Map<String, WorkerWrapper> forParamUseWrappers) {
@@ -151,14 +151,14 @@ public class WorkerWrapper<T,V> {
         forParamUseWrappers.put(id, this);
         long now = SystemClock.now();
         if (remainTime <= 0) {
-            fastFail(WorkStage.INIT, null);
+            fastFail(INIT, null);
             beginNext(executorService, now, remainTime);
             return;
         }
         // 如果已经执行过了就直接执行下一个
         // 因为可能自己上依赖步骤有多个,然后其中一个依赖步骤执行完成了轮到自己执行了,另外一个依赖步骤执行完毕,又进来该方法就不执行了
         // 如果想要设置可重复执行,建议配置成依赖步骤全执行完再执行的策略
-        if (getState() == WorkStage.FINISH || getState() == WorkStage.ERROR) {
+        if (getState() == FINISH || getState() == ERROR) {
             beginNext(executorService, now, remainTime);
             return;
         }
@@ -167,7 +167,7 @@ public class WorkerWrapper<T,V> {
         if (needCheckNextWrapperResult) {
             //如果自己的next链上有已经出结果或已经开始执行的任务了，自己就不用继续了
             if (!checkNextWrapperResult()) {
-                fastFail(WorkStage.INIT, new SkippedException());
+                fastFail(INIT, new SkippedException());
                 beginNext(executorService, now, remainTime);
                 return;
             }
@@ -193,11 +193,11 @@ public class WorkerWrapper<T,V> {
     private boolean checkNextWrapperResult() {
         //如果自己就是最后一个，或者后面有并行的多个，就返回true
         if (nextWrappers == null || nextWrappers.size() != 1) {
-            return getState() == WorkStage.INIT;
+            return getState() == INIT;
         }
         WorkerWrapper<?, ?> nextWrapper = nextWrappers.get(0);
         //继续校验自己的next的状态
-        return nextWrapper.getState() == WorkStage.INIT && nextWrapper.checkNextWrapperResult();
+        return nextWrapper.getState() == INIT && nextWrapper.checkNextWrapperResult();
     }
 
     /**
@@ -216,8 +216,7 @@ public class WorkerWrapper<T,V> {
         CompletableFuture[] futures = new CompletableFuture[nextWrappers.size()];
         for (int i = 0; i < nextWrappers.size(); i++) {
             int finalI = i;
-            futures[i] = CompletableFuture.runAsync(() -> nextWrappers.get(finalI)
-                    .work(executorService, WorkerWrapper.this, remainTime - costTime, forParamUseWrappers), executorService);
+            futures[i] = CompletableFuture.runAsync(() -> nextWrappers.get(finalI).work(executorService, WorkerWrapper.this, remainTime - costTime, forParamUseWrappers), executorService);
         }
         try {
             CompletableFuture.allOf(futures).get(remainTime - costTime, TimeUnit.MILLISECONDS);
@@ -230,10 +229,10 @@ public class WorkerWrapper<T,V> {
         // 如果前置结果超时了 设置超时结果返回
         if (ResultState.TIMEOUT == dependWrapper.getExecuteResult().getResultState()) {
             executeResult = defaultTimeOutResult();
-            fastFail(WorkStage.INIT, null);
+            fastFail(INIT, null);
         } else if (ResultState.EXCEPTION == dependWrapper.getExecuteResult().getResultState()) {
             executeResult = defaultExResult(dependWrapper.getExecuteResult().getException());
-            fastFail(WorkStage.INIT, null);
+            fastFail(INIT, null);
         } else {
             //前面任务正常完毕了，该自己了
             fire();
@@ -243,7 +242,7 @@ public class WorkerWrapper<T,V> {
     private synchronized void doDependsJobs(ExecutorService executorService, List<DependWrapper> dependWrappers, WorkerWrapper fromWrapper, long now, long remainTime) {
         // 如果当前任务已经完成了，依赖的其他任务拿到锁再进来时，不需要执行下面的逻辑了。
         // todo 之前原逻辑 是!checkIsNullResult() 现在用getState()估计是为了当前任务还在执行但是没有执行结果出来的情况所以用新方法判断步骤是不是执行了开始
-        if (getState() != WorkStage.INIT) {
+        if (getState() != INIT) {
             return;
         }
         boolean nowDependIsMust = false;
@@ -263,7 +262,7 @@ public class WorkerWrapper<T,V> {
         if (mustWrapper.isEmpty()) {
             // 前置步骤超时了,直接给自己强制设置为失败
             if (ResultState.TIMEOUT == fromWrapper.getExecuteResult().getResultState()) {
-                fastFail(WorkStage.INIT, null);
+                fastFail(INIT, null);
             } else {
                 fire();
             }
@@ -282,7 +281,7 @@ public class WorkerWrapper<T,V> {
             WorkerWrapper<?, ?> workerWrapper = dependWrapper.getDependWrapper();
             ExecuteResult<?> tempWorkResult = workerWrapper.getExecuteResult();
             // 为null或者isWorking，说明它依赖的某个任务还没执行到或没执行完
-            if (workerWrapper.getState() == WorkStage.INIT || workerWrapper.getState() == WorkStage.WORKING) {
+            if (workerWrapper.getState() == INIT || workerWrapper.getState() == WORKING) {
                 existNoFinish = true;
                 break;
             }
@@ -299,7 +298,7 @@ public class WorkerWrapper<T,V> {
         }
         // 只要有失败的
         if (hasError) {
-            fastFail(WorkStage.INIT, null);
+            fastFail(INIT, null);
             beginNext(executorService, now, remainTime);
             return;
         }
@@ -321,9 +320,9 @@ public class WorkerWrapper<T,V> {
         executeResult = workerDoJob();
     }
 
-    private boolean fastFail(WorkStage expectStage, Exception exception) {
+    private boolean fastFail(int expectStage, Exception exception) {
         // 试图将它从expect状态,改成Error
-        if (!compareAndSetState(expectStage, WorkStage.ERROR)) {
+        if (!compareAndSetState(expectStage, ERROR)) {
             return false;
         }
         // 尚未处理过结果
@@ -339,7 +338,6 @@ public class WorkerWrapper<T,V> {
     }
 
     /**
-     *
      * @return 当前work执行状态是否是默认状态
      */
     private boolean checkIsNullResult() {
@@ -357,7 +355,7 @@ public class WorkerWrapper<T,V> {
         try {
             // 如果已经不是INIT状态了，说明正在被执行或已执行完毕。这一步很重要，可以保证任务不被重复执行
             // 是的话就设置WORKING状态并在后面的action执行job工作
-            if (!compareAndSetState(WorkStage.INIT, WorkStage.WORKING)) {
+            if (!compareAndSetState(INIT, WORKING)) {
                 return executeResult;
             }
 
@@ -369,7 +367,7 @@ public class WorkerWrapper<T,V> {
 
             // 如果状态不是在working,说明别的地方已经修改了
             // 是的话就设置FINISH状态并在后面处理executeResult值
-            if (!compareAndSetState(WorkStage.WORKING, WorkStage.FINISH)) {
+            if (!compareAndSetState(WORKING, FINISH)) {
                 return executeResult;
             }
 
@@ -385,7 +383,7 @@ public class WorkerWrapper<T,V> {
                 return executeResult;
             }
             // 获取异常并将当前worker快速失败
-            fastFail(WorkStage.WORKING, e);
+            fastFail(WORKING, e);
             return executeResult;
         }
     }
@@ -403,7 +401,7 @@ public class WorkerWrapper<T,V> {
         return executeResult;
     }
 
-    private boolean compareAndSetState(WorkStage expect, WorkStage update) {
+    private boolean compareAndSetState(int expect, int update) {
         return this.state.compareAndSet(expect, update);
     }
 
@@ -411,10 +409,11 @@ public class WorkerWrapper<T,V> {
      * 总控制台超时，停止所有任务
      */
     public void stopNow() {
-        if (getState() == WorkStage.INIT || getState() == WorkStage.WORKING) {
+        if (getState() == INIT || getState() == WORKING) {
             fastFail(getState(), null);
         }
     }
+
     private void addNext(WorkerWrapper<?, ?> workerWrapper) {
         if (nextWrappers == null) {
             nextWrappers = new ArrayList<>();
@@ -445,7 +444,7 @@ public class WorkerWrapper<T,V> {
         dependWrappers.add(dependWrapper);
     }
 
-    public static <T,V> WorkerWrapperBuilder<T,V> builder() {
+    public static <T, V> WorkerWrapperBuilder<T, V> builder() {
         return new WorkerWrapperBuilder<>();
     }
 

@@ -1,7 +1,7 @@
 package io.github.bookiosk.entity;
 
 /**
- * @author bookiosk 2024-03-01
+ * @author bookiosk
  */
 public interface Builder<T> {
 
