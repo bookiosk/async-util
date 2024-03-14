@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * 用于组合了worker和callback,一对一的包装,是一个最小的调度单元。
@@ -79,10 +80,20 @@ public class WorkerWrapper<T, V> {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkerWrapper.class);
 
+    private final ReentrantReadWriteLock reentrantReadWriteLock = new ReentrantReadWriteLock();
+
+    private final ReentrantReadWriteLock.WriteLock writeLock = reentrantReadWriteLock.writeLock();
+    private final ReentrantReadWriteLock.ReadLock readLock = reentrantReadWriteLock.readLock();
+
     //—————————————————————— 基础属性部分的获取 ——————————————————————
 
     private int getState() {
-        return state.get();
+        readLock.lock();
+        try {
+            return state.get();
+        } finally {
+            readLock.unlock();
+        }
     }
 
     public ExecuteResult<V> getExecuteResult() {
@@ -321,8 +332,10 @@ public class WorkerWrapper<T, V> {
     }
 
     private boolean fastFail(int expectStage, Exception exception) {
+        writeLock.lock();
         // 试图将它从expect状态,改成Error
         if (!compareAndSetState(expectStage, ERROR)) {
+            writeLock.unlock();
             return false;
         }
         // 尚未处理过结果
@@ -334,6 +347,7 @@ public class WorkerWrapper<T, V> {
             }
         }
         callback.result(false, param, executeResult);
+        writeLock.unlock();
         return true;
     }
 
@@ -367,7 +381,9 @@ public class WorkerWrapper<T, V> {
 
             // 如果状态不是在working,说明别的地方已经修改了
             // 是的话就设置FINISH状态并在后面处理executeResult值
+            writeLock.lock();
             if (!compareAndSetState(WORKING, FINISH)) {
+                writeLock.unlock();
                 return executeResult;
             }
 
@@ -376,6 +392,7 @@ public class WorkerWrapper<T, V> {
             //回调成功
             callback.result(true, param, executeResult);
             // 将当前worker的执行结果返回
+            writeLock.unlock();
             return executeResult;
         } catch (Exception e) {
             // 如果当前执行过了就返回执行结果 避免重复回调
