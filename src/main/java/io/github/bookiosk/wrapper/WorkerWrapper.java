@@ -121,12 +121,12 @@ public class WorkerWrapper<T, V> {
             return false;
         }
         WorkerWrapper<?, ?> that = (WorkerWrapper<?, ?>) o;
-        return needCheckNextWrapperResult == that.needCheckNextWrapperResult && Objects.equals(id, that.id) && Objects.equals(param, that.param) && Objects.equals(worker, that.worker) && Objects.equals(callback, that.callback) && Objects.equals(nextWrappers, that.nextWrappers) && Objects.equals(dependWrappers, that.dependWrappers) && Objects.equals(state, that.state) && Objects.equals(executeResult, that.executeResult);
+        return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, param, worker, callback, nextWrappers, dependWrappers, state, executeResult, needCheckNextWrapperResult);
+        return Objects.hash(id);
     }
 
     //—————————————————————— 构造器部分 ——————————————————————//
@@ -333,21 +333,43 @@ public class WorkerWrapper<T, V> {
 
     private boolean fastFail(int expectStage, Exception exception) {
         writeLock.lock();
-        // 试图将它从expect状态,改成Error
-        if (!compareAndSetState(expectStage, ERROR)) {
-            writeLock.unlock();
-            return false;
-        }
-        // 尚未处理过结果
-        if (checkIsNullResult()) {
-            if (exception == null) {
-                executeResult = defaultTimeOutResult();
-            } else {
-                executeResult = defaultExResult(exception);
+        try {
+            // 试图将它从expect状态,改成Error
+            if (!compareAndSetState(expectStage, ERROR)) {
+                return false;
             }
+            // 尚未处理过结果
+            if (checkIsNullResult()) {
+                if (exception == null) {
+                    executeResult = defaultTimeOutResult();
+                } else {
+                    executeResult = defaultExResult(exception);
+                }
+            }
+            callback.result(false, param, executeResult);
+            return true;
+        } finally {
+            writeLock.unlock();
         }
-        callback.result(false, param, executeResult);
-        writeLock.unlock();
+    }
+
+    private boolean fastSuccess(int expectStage, V resultValue) {
+        writeLock.lock();
+        try {
+            // 如果状态不是在working,说明别的地方已经修改了
+            // 是的话就设置FINISH状态并在后面处理executeResult值
+            if (!compareAndSetState(expectStage, FINISH)) {
+                writeLock.unlock();
+                return false;
+            }
+
+            executeResult.setResultState(ResultState.SUCCESS);
+            executeResult.setResult(resultValue);
+            //回调成功
+            callback.result(true, param, executeResult);
+        } finally {
+            writeLock.unlock();
+        }
         return true;
     }
 
@@ -372,27 +394,13 @@ public class WorkerWrapper<T, V> {
             if (!compareAndSetState(INIT, WORKING)) {
                 return executeResult;
             }
-
             // 开启callback监听
             callback.begin();
-
             //执行耗时操作
             V resultValue = worker.action(param, forParamUseWrappers);
-
-            // 如果状态不是在working,说明别的地方已经修改了
-            // 是的话就设置FINISH状态并在后面处理executeResult值
-            writeLock.lock();
-            if (!compareAndSetState(WORKING, FINISH)) {
-                writeLock.unlock();
-                return executeResult;
-            }
-
-            executeResult.setResultState(ResultState.SUCCESS);
-            executeResult.setResult(resultValue);
-            //回调成功
-            callback.result(true, param, executeResult);
+            // 设置阶段成功并开启回diao
+            fastSuccess(WORKING, resultValue);
             // 将当前worker的执行结果返回
-            writeLock.unlock();
             return executeResult;
         } catch (Exception e) {
             // 如果当前执行过了就返回执行结果 避免重复回调
