@@ -2,7 +2,7 @@ package dependnew;
 
 
 
-import io.github.bookiosk.Async;
+import io.github.bookiosk.executor.Async;
 import io.github.bookiosk.wrapper.WorkerWrapper;
 
 import java.util.concurrent.ExecutionException;
