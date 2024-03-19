@@ -30,27 +30,27 @@
 
 1 多个执行单元的串行请求
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/092905_55771221_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG41.jpg)
 
 2 多个执行单元的并行请求
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/092925_060c01a5_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG42.jpg)
 
 3 阻塞等待，串行的后面跟多个并行
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/092935_5babe488_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG43.jpg)
 
 4 阻塞等待，多个并行的执行完毕后才执行某个
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/092952_c5647879_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG44.jpg)
 
 5 串并行相互依赖
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/093006_d8cd133c_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG45.jpg)
 
 6 复杂场景
 
-![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/093023_357a2912_303698.png)
+![输入图片说明](https://gitee.com/bookiosk/async-util-images/raw/master/WechatIMG46.jpg)
 
 ## 并行场景可能存在的需求之——每个执行结果的回调
 
@@ -86,7 +86,7 @@
 
 那么，我的框架也支持这样的场景。可以在编排时，就取A的结果包装类，作为B的入参。虽然此时尚未执行，必然是空，但可以保证A执行完毕后，B的入参会被赋值。
 
-在V1.3后，框架支持在worker的action的入参Map<String, WorkerWrapper>中获取任意一个执行单元的执行结果，当然，可以取其中的1个、多个执行结果作为自己的入参。Key就是在定义wrapper时通过id传进来的唯一id标识。详情demo可以查看test包下dependnew包案例。
+框架支持在worker的action的入参Map<String, WorkerWrapper>中获取任意一个执行单元的执行结果，当然，可以取其中的1个、多个执行结果作为自己的入参。Key就是在定义wrapper时通过id传进来的唯一id标识。详情demo可以查看test包下dependnew包案例。
 
 ## 并发场景可能存在的需求之——全组任务的超时
 
@@ -94,9 +94,7 @@
 
 ## 并发场景可能存在的需求之——高性能、低线程数
 
-该框架全程无锁，不依靠线程锁来保证顺序。
-
-创建线程量少。![输入图片说明](https://images.gitee.com/uploads/images/2019/1226/093227_9633e2a8_303698.png) 如这样的，A会运行在B、C执行更慢的那个单元的线程上，而不会额外创建线程。
+该框架目前仅依靠读写锁来保证最低的控制,读写锁目前仅用在处理阶段状态和结果的同步性上使用,大部分情况基本处于较畅通的
 
 ## AsyncUtil特点
 

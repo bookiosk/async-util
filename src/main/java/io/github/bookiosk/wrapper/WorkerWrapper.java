@@ -252,7 +252,6 @@ public class WorkerWrapper<T, V> {
 
     private synchronized void doDependsJobs(ExecutorService executorService, List<DependWrapper> dependWrappers, WorkerWrapper fromWrapper, long now, long remainTime) {
         // 如果当前任务已经完成了，依赖的其他任务拿到锁再进来时，不需要执行下面的逻辑了。
-        // todo 之前原逻辑 是!checkIsNullResult() 现在用getState()估计是为了当前任务还在执行但是没有执行结果出来的情况所以用新方法判断步骤是不是执行了开始
         if (getState() != INIT) {
             return;
         }
