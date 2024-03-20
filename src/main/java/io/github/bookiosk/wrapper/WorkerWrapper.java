@@ -4,6 +4,7 @@ import io.github.bookiosk.callback.DefaultCallback;
 import io.github.bookiosk.callback.ICallback;
 import io.github.bookiosk.entity.Builder;
 import io.github.bookiosk.entity.ExecuteResult;
+import io.github.bookiosk.entity.WorkState;
 import io.github.bookiosk.enums.ResultState;
 import io.github.bookiosk.exception.SkippedException;
 import io.github.bookiosk.executor.timer.SystemClock;
@@ -16,8 +17,11 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import static io.github.bookiosk.entity.WorkState.*;
 
 /**
  * 用于组合了worker和callback,一对一的包装,是一个最小的调度单元。
@@ -47,18 +51,8 @@ public class WorkerWrapper<T, V> {
      * DependWrapper 是在WorkerWrapper增加了是否必须依赖的属性后的封装个体
      */
     private List<DependWrapper> dependWrappers;
-    /**
-     * 标记该事件是否已经被处理过了，譬如已经超时返回false了，后续rpc又收到返回值了，则不再二次回调
-     * 使用AtomicInteger是为了能保证高并发情况state的原子性
-     *  <p>
-     * 1-finish, 2-error, 3-working
-     */
-    private final AtomicInteger state = new AtomicInteger(INIT);
 
-    private static final int INIT = 0;
-    private static final int FINISH = 1;
-    private static final int ERROR = 2;
-    private static final int WORKING = 3;
+    private final AtomicReference<WorkState<V>> workState = new AtomicReference<>(WorkState.defaultWorkState());
 
     /**
      * 该map存放所有wrapper的id和wrapper映射
@@ -67,7 +61,7 @@ public class WorkerWrapper<T, V> {
     /**
      * 也是个钩子变量，用来存临时的结果
      */
-    private volatile ExecuteResult<V> executeResult = ExecuteResult.defaultResult();
+//    private volatile ExecuteResult<V> executeResult = ExecuteResult.defaultResult();
     /**
      * 是否在执行自己前，去校验nextWrapper的执行结果<p>
      * 1   4
@@ -80,24 +74,14 @@ public class WorkerWrapper<T, V> {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkerWrapper.class);
 
-    private final ReentrantReadWriteLock reentrantReadWriteLock = new ReentrantReadWriteLock();
-
-    private final ReentrantReadWriteLock.WriteLock writeLock = reentrantReadWriteLock.writeLock();
-    private final ReentrantReadWriteLock.ReadLock readLock = reentrantReadWriteLock.readLock();
-
     //—————————————————————— 基础属性部分的获取 ——————————————————————
 
     private int getState() {
-        readLock.lock();
-        try {
-            return state.get();
-        } finally {
-            readLock.unlock();
-        }
+        return workState.get().getState();
     }
 
     public ExecuteResult<V> getExecuteResult() {
-        return executeResult;
+        return workState.get().getExecuteResult();
     }
 
     public List<WorkerWrapper<?, ?>> getNextWrappers() {
@@ -169,7 +153,7 @@ public class WorkerWrapper<T, V> {
         // 如果已经执行过了就直接执行下一个
         // 因为可能自己上依赖步骤有多个,然后其中一个依赖步骤执行完成了轮到自己执行了,另外一个依赖步骤执行完毕,又进来该方法就不执行了
         // 如果想要设置可重复执行,建议配置成依赖步骤全执行完再执行的策略
-        if (getState() == FINISH || getState() == ERROR) {
+        if (getState() == WorkState.FINISH || getState() == ERROR) {
             beginNext(executorService, now, remainTime);
             return;
         }
@@ -239,10 +223,10 @@ public class WorkerWrapper<T, V> {
     private void doDependsOneJob(WorkerWrapper dependWrapper) {
         // 如果前置结果超时了 设置超时结果返回
         if (ResultState.TIMEOUT == dependWrapper.getExecuteResult().getResultState()) {
-            executeResult = defaultTimeOutResult();
+            setDefaultTimeOutResult();
             fastFail(INIT, null);
         } else if (ResultState.EXCEPTION == dependWrapper.getExecuteResult().getResultState()) {
-            executeResult = defaultExResult(dependWrapper.getExecuteResult().getException());
+            setDefaultExResult(dependWrapper.getExecuteResult().getException());
             fastFail(INIT, null);
         } else {
             //前面任务正常完毕了，该自己了
@@ -296,12 +280,12 @@ public class WorkerWrapper<T, V> {
                 break;
             }
             if (ResultState.TIMEOUT == tempWorkResult.getResultState()) {
-                executeResult = defaultTimeOutResult();
+                setDefaultTimeOutResult();
                 hasError = true;
                 break;
             }
             if (ResultState.EXCEPTION == tempWorkResult.getResultState()) {
-                executeResult = defaultExResult(workerWrapper.getExecuteResult().getException());
+                setDefaultExResult(workerWrapper.getExecuteResult().getException());
                 hasError = true;
                 break;
             }
@@ -327,71 +311,70 @@ public class WorkerWrapper<T, V> {
      */
     private void fire() {
         //阻塞取结果
-        executeResult = workerDoJob();
+        workerDoJob();
     }
 
     private boolean fastFail(int expectStage, Exception exception) {
-        writeLock.lock();
-        try {
-            // 试图将它从expect状态,改成Error
-            if (!compareAndSetState(expectStage, ERROR)) {
-                return false;
-            }
-            // 尚未处理过结果
-            if (checkIsNullResult()) {
-                if (exception == null) {
-                    executeResult = defaultTimeOutResult();
-                } else {
-                    executeResult = defaultExResult(exception);
+        // 试图将它从expect状态,改成Error
+        AtomicBoolean result = new AtomicBoolean(false);
+        workState.getAndUpdate((oldValue) -> {
+            if (expectStage == oldValue.getState()) {
+                oldValue.setState(ERROR);
+                result.set(true);
+                if (checkIsNullResult()) {
+                    if (exception == null) {
+                        setDefaultTimeOutResult();
+                    } else {
+                        setDefaultExResult(exception);
+                    }
                 }
+                // 尚未处理过结果
+                callback.result(false, param, oldValue.getExecuteResult());
             }
-            callback.result(false, param, executeResult);
-            return true;
-        } finally {
-            writeLock.unlock();
-        }
+            return oldValue;
+        });
+        return result.get();
     }
 
     private boolean fastSuccess(int expectStage, V resultValue) {
-        writeLock.lock();
-        try {
-            // 如果状态不是在working,说明别的地方已经修改了
-            // 是的话就设置FINISH状态并在后面处理executeResult值
-            if (!compareAndSetState(expectStage, FINISH)) {
-                writeLock.unlock();
-                return false;
+        // 如果状态不是在working,说明别的地方已经修改了
+        // 是的话就设置FINISH状态并在后面处理executeResult值
+        AtomicBoolean result = new AtomicBoolean(false);
+        workState.getAndUpdate((oldValue) -> {
+            if (expectStage == oldValue.getState()) {
+                oldValue.setState(FINISH);
+                result.set(true);
+                ExecuteResult<V> executeResult = oldValue.getExecuteResult();
+                executeResult.setResultState(ResultState.SUCCESS);
+                executeResult.setResult(resultValue);
+                // 尚未处理过结果
+                callback.result(false, param, executeResult);
             }
-
-            executeResult.setResultState(ResultState.SUCCESS);
-            executeResult.setResult(resultValue);
-            //回调成功
-            callback.result(true, param, executeResult);
-        } finally {
-            writeLock.unlock();
-        }
-        return true;
+            return oldValue;
+        });
+        return result.get();
     }
 
     /**
      * @return 当前work执行状态是否是默认状态
      */
     private boolean checkIsNullResult() {
-        return ResultState.DEFAULT == executeResult.getResultState();
+        return ResultState.DEFAULT == this.getExecuteResult().getResultState();
     }
 
     /**
      * 具体的单个worker执行任务
      */
-    private ExecuteResult<V> workerDoJob() {
+    private void workerDoJob() {
         // 如果当前执行过了就返回执行结果 避免重复执行
         if (!checkIsNullResult()) {
-            return executeResult;
+            return;
         }
         try {
             // 如果已经不是INIT状态了，说明正在被执行或已执行完毕。这一步很重要，可以保证任务不被重复执行
             // 是的话就设置WORKING状态并在后面的action执行job工作
             if (!compareAndSetState(INIT, WORKING)) {
-                return executeResult;
+                return;
             }
             // 开启callback监听
             callback.begin();
@@ -400,33 +383,43 @@ public class WorkerWrapper<T, V> {
             // 设置阶段成功并开启回diao
             fastSuccess(WORKING, resultValue);
             // 将当前worker的执行结果返回
-            return executeResult;
         } catch (Exception e) {
             // 如果当前执行过了就返回执行结果 避免重复回调
             if (!checkIsNullResult()) {
-                return executeResult;
+                return;
             }
             // 获取异常并将当前worker快速失败
             fastFail(WORKING, e);
-            return executeResult;
         }
     }
 
-    private ExecuteResult<V> defaultTimeOutResult() {
-        executeResult.setResultState(ResultState.TIMEOUT);
-        executeResult.setResult(worker.defaultValue());
-        return executeResult;
+    private void setDefaultTimeOutResult() {
+        workState.updateAndGet((oldValue) -> {
+           oldValue.getExecuteResult().setResultState(ResultState.TIMEOUT);
+           oldValue.getExecuteResult().setResult(worker.defaultValue());
+           return oldValue;
+        });
     }
 
-    private ExecuteResult<V> defaultExResult(Exception exception) {
-        executeResult.setResultState(ResultState.EXCEPTION);
-        executeResult.setResult(worker.defaultValue());
-        executeResult.setException(exception);
-        return executeResult;
+    private void setDefaultExResult(Exception exception) {
+        workState.updateAndGet((oldValue) -> {
+            oldValue.getExecuteResult().setResultState(ResultState.EXCEPTION);
+            oldValue.getExecuteResult().setResult(worker.defaultValue());
+            oldValue.getExecuteResult().setException(exception);
+            return oldValue;
+        });
     }
 
     private boolean compareAndSetState(int expect, int update) {
-        return this.state.compareAndSet(expect, update);
+        AtomicBoolean result = new AtomicBoolean(false);
+        workState.getAndUpdate((oldValue) -> {
+            if (expect == oldValue.getState()) {
+                oldValue.setState(update);
+                result.set(true);
+            }
+            return oldValue;
+        });
+        return result.get();
     }
 
     /**
