@@ -388,9 +388,9 @@ public class WorkerWrapper<T, V> {
 
     private void setDefaultTimeOutResult() {
         workState.updateAndGet((oldValue) -> {
-           oldValue.getExecuteResult().setResultState(ResultState.TIMEOUT);
-           oldValue.getExecuteResult().setResult(worker.defaultValue());
-           return oldValue;
+            oldValue.getExecuteResult().setResultState(ResultState.TIMEOUT);
+            oldValue.getExecuteResult().setResult(worker.defaultValue());
+            return oldValue;
         });
     }
 

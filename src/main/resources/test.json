@@ -1,0 +1,40 @@
+{
+  "IWorker": [
+    {
+      "id": "",
+      "clazz": ""
+    },
+    {
+      "id": "",
+      "clazz": ""
+    },
+    {
+      "id": "",
+      "clazz": ""
+    }
+  ],
+  "ICallback": [
+    {
+      "id": "",
+      "clazz": ""
+    },
+    {
+      "id": "",
+      "clazz": ""
+    },
+    {
+      "id": "",
+      "clazz": ""
+    }
+  ],
+  "WorkWrapper": [
+    {
+      "id": "",
+      "worker": "",
+      "callback": "",
+      "depend": "",
+      "next": "",
+      "param": {}
+    }
+  ]
+}
