@@ -19,7 +19,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static io.github.bookiosk.entity.WorkState.*;
 
@@ -314,13 +313,11 @@ public class WorkerWrapper<T, V> {
         workerDoJob();
     }
 
-    private boolean fastFail(int expectStage, Exception exception) {
+    private void fastFail(int expectStage, Exception exception) {
         // 试图将它从expect状态,改成Error
-        AtomicBoolean result = new AtomicBoolean(false);
-        workState.getAndUpdate((oldValue) -> {
+        workState.updateAndGet((oldValue) -> {
             if (expectStage == oldValue.getState()) {
                 oldValue.setState(ERROR);
-                result.set(true);
                 if (checkIsNullResult()) {
                     if (exception == null) {
                         setDefaultTimeOutResult();
@@ -333,17 +330,14 @@ public class WorkerWrapper<T, V> {
             }
             return oldValue;
         });
-        return result.get();
     }
 
-    private boolean fastSuccess(int expectStage, V resultValue) {
+    private void fastSuccess(V resultValue) {
         // 如果状态不是在working,说明别的地方已经修改了
         // 是的话就设置FINISH状态并在后面处理executeResult值
-        AtomicBoolean result = new AtomicBoolean(false);
-        workState.getAndUpdate((oldValue) -> {
-            if (expectStage == oldValue.getState()) {
+        workState.updateAndGet((oldValue) -> {
+            if (WorkState.WORKING == oldValue.getState()) {
                 oldValue.setState(FINISH);
-                result.set(true);
                 ExecuteResult<V> executeResult = oldValue.getExecuteResult();
                 executeResult.setResultState(ResultState.SUCCESS);
                 executeResult.setResult(resultValue);
@@ -352,7 +346,6 @@ public class WorkerWrapper<T, V> {
             }
             return oldValue;
         });
-        return result.get();
     }
 
     /**
@@ -380,8 +373,8 @@ public class WorkerWrapper<T, V> {
             callback.begin();
             //执行耗时操作
             V resultValue = worker.action(param, forParamUseWrappers);
-            // 设置阶段成功并开启回diao
-            fastSuccess(WORKING, resultValue);
+            // 设置阶段成功并开启回调
+            fastSuccess(resultValue);
             // 将当前worker的执行结果返回
         } catch (Exception e) {
             // 如果当前执行过了就返回执行结果 避免重复回调
@@ -412,7 +405,7 @@ public class WorkerWrapper<T, V> {
 
     private boolean compareAndSetState(int expect, int update) {
         AtomicBoolean result = new AtomicBoolean(false);
-        workState.getAndUpdate((oldValue) -> {
+        workState.updateAndGet((oldValue) -> {
             if (expect == oldValue.getState()) {
                 oldValue.setState(update);
                 result.set(true);
